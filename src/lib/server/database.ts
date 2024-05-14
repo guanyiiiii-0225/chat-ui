@@ -12,6 +12,7 @@ import type { Report } from "$lib/types/Report";
 import type { ConversationStats } from "$lib/types/ConversationStats";
 import type { MigrationResult } from "$lib/types/MigrationResult";
 import type { Semaphore } from "$lib/types/Semaphore";
+import type { Feedback } from "$lib/types/Feedback";
 import type { AssistantStats } from "$lib/types/AssistantStats";
 import { logger } from "$lib/server/logger";
 import { building } from "$app/environment";
@@ -89,6 +90,7 @@ export class Database {
 		const bucket = new GridFSBucket(db, { bucketName: "files" });
 		const migrationResults = db.collection<MigrationResult>("migrationResults");
 		const semaphores = db.collection<Semaphore>("semaphores");
+		const feedback = db.collection<Feedback>("feedback");
 
 		return {
 			conversations,
@@ -105,6 +107,7 @@ export class Database {
 			bucket,
 			migrationResults,
 			semaphores,
+			feedback,
 		};
 	}
 

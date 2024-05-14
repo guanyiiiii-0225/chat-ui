@@ -294,6 +294,20 @@
 		}
 	}
 
+	async function feedbackMessage(
+		score: Message["score"],
+		messageId: string,
+		feedback: string[],
+		customComment: string
+	) {
+		let conversationId = $page.params.id;
+
+		await fetch(`${base}/conversation/${conversationId}/message/${messageId}/feedback`, {
+			method: "POST",
+			body: JSON.stringify({ feedback, customComment, score }),
+		});
+	}
+
 	onMount(async () => {
 		// only used in case of creating new conversations (from the parent POST endpoint)
 		if ($pendingMessage) {
@@ -388,6 +402,13 @@
 	on:vote={(event) => voteMessage(event.detail.score, event.detail.id)}
 	on:share={() => shareConversation($page.params.id, data.title)}
 	on:stop={() => (($isAborted = true), (loading = false))}
+	on:feedback={(event) =>
+		feedbackMessage(
+			event.detail.score,
+			event.detail.id,
+			event.detail.feedback,
+			event.detail.customComment
+		)}
 	models={data.models}
 	currentModel={findCurrentModel([...data.models, ...data.oldModels], data.model)}
 	assistant={data.assistant}

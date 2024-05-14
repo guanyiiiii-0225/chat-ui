@@ -176,6 +176,7 @@
 						on:retry
 						on:vote
 						on:continue
+						on:feedback
 					/>
 				</div>
 			{:else if pending}

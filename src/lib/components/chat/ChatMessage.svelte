@@ -25,6 +25,9 @@
 	import { base } from "$app/paths";
 	import { useConvTreeStore } from "$lib/stores/convTree";
 
+	import GreenToast from "$lib/components/GreenToast.svelte";
+	import { onDestroy } from "svelte";
+
 	function sanitizeMd(md: string) {
 		let ret = md
 			.replace(/<\|[a-z]*$/, "")
@@ -61,6 +64,12 @@
 	const dispatch = createEventDispatcher<{
 		retry: { content?: string; id: Message["id"] };
 		vote: { score: Message["score"]; id: Message["id"] };
+		feedback: {
+			score: Message["score"];
+			id: Message["id"];
+			feedback: string[];
+			customComment: string;
+		};
 	}>();
 
 	let contentEl: HTMLElement;
@@ -177,7 +186,52 @@
 	const convTreeStore = useConvTreeStore();
 
 	$: if (message.children?.length === 0) $convTreeStore.leaf = message.id;
+
+	let negativeFeedbackOptions = [
+		"Don't like the style",
+		"Not factually correct",
+		"Didn't follow the instructions",
+		"Refused when it shouldn't have",
+		"Being lazy",
+		"Unsafe or problematic",
+		"Mean or inappropriate",
+	];
+	let feedback: string[] = [];
+	let customComment = "";
+	let feedbackMessageId: Message["id"];
+	function handleNegativeVote() {
+		if (message.score != -1) {
+			feedbackMessageId = message.id;
+		} else {
+			feedbackMessageId = "";
+		}
+		dispatch("vote", { score: message.score === -1 ? 0 : -1, id: message.id });
+	}
+	function toggleChoice(choice: string) {
+		const index = feedback.indexOf(choice);
+		if (index < 0) {
+			feedback = [...feedback, choice];
+		} else {
+			feedback = feedback.filter((item) => item !== choice);
+		}
+	}
+	let submitSuccess: boolean;
+	let submitSuccessToastTimeout: ReturnType<typeof setTimeout>;
+	async function onSuccess() {
+		submitSuccess = true;
+
+		submitSuccessToastTimeout = setTimeout(() => {
+			submitSuccess = false;
+		}, 3000);
+	}
+	onDestroy(() => {
+		clearTimeout(submitSuccessToastTimeout);
+	});
 </script>
+
+{#if submitSuccess}
+	<GreenToast message="Thank you for your feedback!" />
+{/if}
 
 {#if message.from === "assistant"}
 	<div
@@ -259,8 +313,10 @@
 							: ''}"
 						title={message.score === 1 ? "Remove +1" : "+1"}
 						type="button"
-						on:click={() =>
-							dispatch("vote", { score: message.score === 1 ? 0 : 1, id: message.id })}
+						on:click={() => {
+							dispatch("vote", { score: message.score === 1 ? 0 : 1, id: message.id });
+							feedbackMessageId = "";
+						}}
 					>
 						<CarbonThumbsUp class="h-[1.14em] w-[1.14em]" />
 					</button>
@@ -271,8 +327,7 @@
 							: ''}"
 						title={message.score === -1 ? "Remove -1" : "-1"}
 						type="button"
-						on:click={() =>
-							dispatch("vote", { score: message.score === -1 ? 0 : -1, id: message.id })}
+						on:click={handleNegativeVote}
 					>
 						<CarbonThumbsDown class="h-[1.14em] w-[1.14em]" />
 					</button>
@@ -281,7 +336,10 @@
 					class="btn rounded-sm p-1 text-sm text-gray-400 focus:ring-0 hover:text-gray-500 dark:text-gray-400 dark:hover:text-gray-300"
 					title="Retry"
 					type="button"
-					on:click={() => dispatch("retry", { id: message.id })}
+					on:click={() => {
+						dispatch("retry", { id: message.id });
+						feedbackMessageId = "";
+					}}
 				>
 					<CarbonRotate360 />
 				</button>
@@ -296,6 +354,77 @@
 		{/if}
 	</div>
 	<slot name="childrenNav" />
+	{#if feedbackMessageId === message.id}
+		<div
+			class="ml-2 mr-5 mt-6 w-full min-w-64 rounded-xl border bg-gray-50 p-4 shadow dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300"
+		>
+			<span class="mb-1 text-sm font-semibold">Tell us more!</span>
+
+			<p class="text-sm text-gray-500 dark:text-gray-400">
+				Please choose some reasons why you don't like this response.
+			</p>
+
+			<div id="choices" class="mt-4 flex flex-wrap">
+				{#each negativeFeedbackOptions as choice (choice)}
+					<button
+						class="m-1 inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 {feedback.includes(
+							choice
+						)
+							? 'bg-black text-white dark:bg-white dark:text-gray-700'
+							: 'bg-white text-gray-500 dark:bg-gray-800/40 dark:text-gray-300'}"
+						on:click={() => toggleChoice(choice)}
+					>
+						{choice}
+					</button>
+				{/each}
+			</div>
+
+			<textarea
+				name="customFeedback"
+				class="m-1 mt-4 max-h-48 w-full resize-y rounded-lg border border-gray-200 bg-gray-100 p-2 text-smd dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300"
+				placeholder="(Optional) Feel free to add specific details"
+				maxlength="128"
+				bind:value={customComment}
+			/>
+
+			<div class="flex w-full flex-row justify-end px-2 pt-2">
+				<button
+					type="button"
+					class="mr-2 rounded-full bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-500 hover:underline md:px-8 dark:bg-gray-700 dark:text-gray-200"
+					on:click={() => {
+						feedbackMessageId = "";
+						feedback = [];
+						customComment = "";
+					}}>No, thanks.</button
+				>
+
+				<button
+					type="submit"
+					class="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white md:px-8
+  {customComment || feedback.length != 0
+						? 'hover:underline dark:bg-white dark:text-gray-700'
+						: 'cursor-not-allowed dark:bg-gray-700 dark:text-gray-100'}"
+					disabled={!customComment && feedback.length === 0}
+					class:bg-gray-200={!customComment && feedback.length === 0}
+					class:!text-gray-400={!customComment && feedback.length === 0}
+					on:click={() => {
+						dispatch("feedback", {
+							score: -1,
+							id: feedbackMessageId,
+							feedback,
+							customComment,
+						});
+						feedbackMessageId = "";
+						feedback = [];
+						customComment = "";
+						onSuccess();
+					}}
+				>
+					Submit feedback
+				</button>
+			</div>
+		</div>
+	{/if}
 {/if}
 {#if message.from === "user"}
 	<div
@@ -426,6 +555,7 @@
 		on:retry
 		on:vote
 		on:continue
+		on:feedback
 	>
 		<svelte:fragment slot="childrenNav">
 			{#if nChildren > 1 && $convTreeStore.editing === null}
