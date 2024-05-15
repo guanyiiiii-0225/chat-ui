@@ -31,7 +31,7 @@ export async function POST({ params, request, locals }) {
 
 	const res = await collections.feedback.insertOne({
 		_id: new ObjectId(),
-		createdBy: locals.user?._id ?? new ObjectId(locals.sessionId),
+		createdBy: locals.user?._id ?? locals.sessionId,
 		conversationId,
 		messageId,
 		score: scoreTyped,
