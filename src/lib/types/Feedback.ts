@@ -5,7 +5,7 @@ import type { Message } from "./Message";
 
 export type Feedback = {
 	_id: ObjectId;
-	createdBy: User["_id"];
+	createdBy: User["_id"] | string;
 	conversationId: Conversation["_id"];
 	messageId: Message["id"];
 	score: -1 | 0 | 1;
